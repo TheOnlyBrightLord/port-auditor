@@ -1,5 +1,5 @@
 # 🔍 Port Auditor
-![CI](https://github.com/TheBrigthLord/port-auditor/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/TheOnlyBrigthLord/port-auditor/actions/workflows/ci.yml/badge.svg)
 
 Сетевой сканер и аудитор безопасности, написанный на Go. Автоматически обнаруживает открытые порты, определяет сервисы, проверяет SSL-сертификаты и генерирует красивые отчёты.
 
