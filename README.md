@@ -27,6 +27,7 @@
 
 ```bash
 port-auditor -web
+```
 
 ## 🚀 Быстрый старт
 
