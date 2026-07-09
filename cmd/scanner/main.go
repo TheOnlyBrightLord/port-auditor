@@ -12,21 +12,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TheBrightLord/port-auditor/internal/config"
 	"github.com/TheBrightLord/port-auditor/internal/notifier"
 	"github.com/TheBrightLord/port-auditor/internal/reporter"
 	"github.com/TheBrightLord/port-auditor/internal/scanner"
 )
 
-var defaultPorts = []int{
-	22, 80, 443, 3000, 3306, 5432, 6379, 8080, 8443,
-	9200, 9300, 27017, 27018, 11211, 5672, 15672, 9092,
-}
-
 func main() {
 	cidr := flag.String("target", "", "CIDR (напр. 192.168.1.0/24)")
-	workers := flag.Int("workers", 100, "Параллельных воркеров")
+	workers := flag.Int("workers", 0, "Параллельных воркеров (0 = из конфига)")
 	output := flag.String("out", "", "JSON-файл отчета")
 	htmlOutput := flag.String("html-out", "", "HTML-файл отчета")
+	configPath := flag.String("config", "", "Путь к YAML-конфигу (по умолчанию configs/default.yaml)")
 
 	// Флаги для Telegram
 	tgToken := flag.String("tg-token", "", "Telegram Bot Token")
@@ -35,8 +32,34 @@ func main() {
 	flag.Parse()
 
 	if *cidr == "" {
-		fmt.Println("Использование: scanner -target 192.168.1.0/24 [-out report.json] [-html-out report.html] [-tg-token XXX -tg-chat YYY]")
+		fmt.Println("Использование: scanner -target 192.168.1.0/24 [-config configs/default.yaml]")
 		os.Exit(1)
+	}
+
+	// Загрузка конфигурации
+	var cfg *config.Config
+	var err error
+
+	cfgFile := *configPath
+	if cfgFile == "" {
+		cfgFile = "configs/default.yaml"
+	}
+
+	if _, statErr := os.Stat(cfgFile); statErr == nil {
+		cfg, err = config.Load(cfgFile)
+		if err != nil {
+			log.Fatalf("Ошибка загрузки конфига %s: %v", cfgFile, err)
+		}
+		fmt.Printf("📄 Конфиг загружен: %s\n", cfgFile)
+	} else {
+		cfg = config.Default()
+		fmt.Println("📄 Используется конфигурация по умолчанию")
+	}
+
+	// Флаг -workers переопределяет значение из конфига
+	numWorkers := cfg.Defaults.Workers
+	if *workers > 0 {
+		numWorkers = *workers
 	}
 
 	prefix, err := netip.ParsePrefix(*cidr)
@@ -45,11 +68,11 @@ func main() {
 	}
 
 	hosts := generateHosts(prefix)
-	totalJobs := len(hosts) * len(defaultPorts)
+	totalJobs := len(hosts) * len(cfg.Ports)
 	fmt.Printf("🎯 Цель: %s\n", *cidr)
 	fmt.Printf("📊 Хостов: %d | Портов: %d | Всего: %d\n",
-		len(hosts), len(defaultPorts), totalJobs)
-	fmt.Printf("⚙️  Воркеров: %d\n\n", *workers)
+		len(hosts), len(cfg.Ports), totalJobs)
+	fmt.Printf("⚙️  Воркеров: %d\n\n", numWorkers)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -62,13 +85,13 @@ func main() {
 		cancel()
 	}()
 
-	pool := scanner.NewPool(*workers, totalJobs)
+	pool := scanner.NewPool(numWorkers, totalJobs)
 	pool.Start(ctx)
 
 	go func() {
 	outer:
 		for _, host := range hosts {
-			for _, port := range defaultPorts {
+			for _, port := range cfg.Ports {
 				select {
 				case <-ctx.Done():
 					break outer
@@ -175,7 +198,7 @@ func showProgress(ctx context.Context, pool *scanner.Pool, done chan struct{}) {
 
 func writeReport(output string, results []scanner.PortResult) {
 	if output == "" {
-		return // Если не указан файл — не выводим JSON в консоль (он большой)
+		return
 	}
 	data, _ := json.MarshalIndent(results, "", "  ")
 	if err := os.WriteFile(output, data, 0644); err != nil {

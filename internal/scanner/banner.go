@@ -16,7 +16,6 @@ type ServiceInfo struct {
 }
 
 func GrabBanner(ctx context.Context, conn net.Conn, port int) ServiceInfo {
-	// Проверяем, не отменён ли контекст
 	select {
 	case <-ctx.Done():
 		return ServiceInfo{Name: "cancelled"}
@@ -25,33 +24,33 @@ func GrabBanner(ctx context.Context, conn net.Conn, port int) ServiceInfo {
 
 	switch port {
 	case 22:
-		return detectSSH(conn)
+		return detectSSH(ctx, conn)
 	case 80, 8080, 8000, 3000, 9200:
 		host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-		return detectHTTP(conn, host)
+		return detectHTTP(ctx, conn, host)
 	case 443, 8443:
 		return ServiceInfo{Name: "HTTPS"}
 	case 3306:
-		return detectMySQL(conn)
+		return detectMySQL(ctx, conn)
 	case 5432:
-		return detectPostgres(conn)
+		return detectPostgres(ctx, conn)
 	case 6379:
-		return detectRedis(conn)
+		return detectRedis(ctx, conn)
 	case 11211:
-		return detectMemcached(conn)
+		return detectMemcached(ctx, conn)
 	case 27017:
-		return detectMongoDB(conn)
+		return detectMongoDB(ctx, conn)
 	default:
-		return detectGeneric(conn)
+		return detectGeneric(ctx, conn)
 	}
 }
 
-func detectSSH(conn net.Conn) ServiceInfo {
+func detectSSH(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 	reader := bufio.NewReader(conn)
 	banner, err := reader.ReadString('\n')
 	if err != nil || len(banner) == 0 {
-		return ServiceInfo{Name: "SSH"}
+		return ServiceInfo{Name: "SSH", Version: "unknown"}
 	}
 
 	banner = strings.TrimSpace(banner)
@@ -71,11 +70,10 @@ func detectSSH(conn net.Conn) ServiceInfo {
 	}
 }
 
-func detectHTTP(conn net.Conn, host string) ServiceInfo {
+func detectHTTP(_ context.Context, conn net.Conn, host string) ServiceInfo {
 	conn.SetWriteDeadline(time.Now().Add(1 * time.Second))
 	request := "GET / HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: PortAuditor\r\n\r\n"
-	_, err := conn.Write([]byte(request))
-	if err != nil {
+	if _, err := conn.Write([]byte(request)); err != nil {
 		return ServiceInfo{Name: "HTTP"}
 	}
 
@@ -83,8 +81,7 @@ func detectHTTP(conn net.Conn, host string) ServiceInfo {
 	reader := bufio.NewReader(conn)
 	var response strings.Builder
 
-	// Читаем только заголовки (до пустой строки)
-	for i := 0; i < 20; i++ { // Максимум 20 строк
+	for i := 0; i < 20; i++ {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			break
@@ -98,8 +95,7 @@ func detectHTTP(conn net.Conn, host string) ServiceInfo {
 	content := response.String()
 	server := "unknown"
 
-	lines := strings.Split(content, "\r\n")
-	for _, line := range lines {
+	for _, line := range strings.Split(content, "\r\n") {
 		lower := strings.ToLower(line)
 		if strings.HasPrefix(lower, "server:") {
 			server = strings.TrimSpace(line[7:])
@@ -107,7 +103,6 @@ func detectHTTP(conn net.Conn, host string) ServiceInfo {
 		}
 	}
 
-	// Для Elasticsearch
 	if strings.Contains(content, "cluster_name") || strings.Contains(content, "tagline") {
 		return ServiceInfo{
 			Name:    "Elasticsearch",
@@ -116,13 +111,10 @@ func detectHTTP(conn net.Conn, host string) ServiceInfo {
 		}
 	}
 
-	return ServiceInfo{
-		Name:    "HTTP",
-		Version: server,
-	}
+	return ServiceInfo{Name: "HTTP", Version: server}
 }
 
-func detectMySQL(conn net.Conn) ServiceInfo {
+func detectMySQL(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 	data := make([]byte, 1024)
 	n, err := conn.Read(data)
@@ -132,7 +124,6 @@ func detectMySQL(conn net.Conn) ServiceInfo {
 
 	versionStart := 5
 	versionEnd := versionStart
-
 	for i := versionStart; i < n; i++ {
 		if data[i] == 0 {
 			versionEnd = i
@@ -145,17 +136,13 @@ func detectMySQL(conn net.Conn) ServiceInfo {
 		version = string(data[versionStart:versionEnd])
 	}
 
-	return ServiceInfo{
-		Name:    "MySQL",
-		Version: version,
-	}
+	return ServiceInfo{Name: "MySQL", Version: version}
 }
 
-func detectPostgres(conn net.Conn) ServiceInfo {
+func detectPostgres(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
 	sslRequest := []byte{0, 0, 0, 8, 4, 210, 22, 47}
-	_, err := conn.Write(sslRequest)
-	if err != nil {
+	if _, err := conn.Write(sslRequest); err != nil {
 		return ServiceInfo{Name: "PostgreSQL"}
 	}
 
@@ -164,7 +151,6 @@ func detectPostgres(conn net.Conn) ServiceInfo {
 	n, err := conn.Read(response)
 
 	if err == nil && n > 0 {
-		// Tagged switch вместо if/else
 		switch response[0] {
 		case 'S':
 			return ServiceInfo{Name: "PostgreSQL", Version: "SSL supported"}
@@ -176,10 +162,9 @@ func detectPostgres(conn net.Conn) ServiceInfo {
 	return ServiceInfo{Name: "PostgreSQL"}
 }
 
-func detectRedis(conn net.Conn) ServiceInfo {
+func detectRedis(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
-	_, err := conn.Write([]byte("PING\r\n"))
-	if err != nil {
+	if _, err := conn.Write([]byte("PING\r\n")); err != nil {
 		return ServiceInfo{Name: "Redis"}
 	}
 
@@ -200,22 +185,15 @@ func detectRedis(conn net.Conn) ServiceInfo {
 	}
 
 	if strings.HasPrefix(response, "-NOAUTH") {
-		return ServiceInfo{
-			Name:    "Redis",
-			Version: "password protected",
-		}
+		return ServiceInfo{Name: "Redis", Version: "password protected"}
 	}
 
-	return ServiceInfo{
-		Name:   "Redis",
-		Banner: response,
-	}
+	return ServiceInfo{Name: "Redis", Banner: response}
 }
 
-func detectMemcached(conn net.Conn) ServiceInfo {
+func detectMemcached(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
-	_, err := conn.Write([]byte("stats\r\n"))
-	if err != nil {
+	if _, err := conn.Write([]byte("stats\r\n")); err != nil {
 		return ServiceInfo{Name: "Memcached"}
 	}
 
@@ -236,21 +214,17 @@ func detectMemcached(conn net.Conn) ServiceInfo {
 	return ServiceInfo{Name: "Memcached"}
 }
 
-func detectMongoDB(conn net.Conn) ServiceInfo {
+func detectMongoDB(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	data := make([]byte, 256)
 	n, _ := conn.Read(data)
 	if n > 0 {
-		return ServiceInfo{
-			Name: "MongoDB",
-			Risk: "⚠️  Check authentication",
-		}
+		return ServiceInfo{Name: "MongoDB", Risk: "⚠️  Check authentication"}
 	}
 	return ServiceInfo{Name: "MongoDB"}
 }
 
-func detectGeneric(conn net.Conn) ServiceInfo {
-	// Всего 500мс на чтение — если молчит, значит "silent service"
+func detectGeneric(_ context.Context, conn net.Conn) ServiceInfo {
 	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	data := make([]byte, 256)
 	n, _ := conn.Read(data)
@@ -271,8 +245,5 @@ func detectGeneric(conn net.Conn) ServiceInfo {
 		return r
 	}, banner)
 
-	return ServiceInfo{
-		Name:   "unknown",
-		Banner: banner,
-	}
+	return ServiceInfo{Name: "unknown", Banner: banner}
 }
