@@ -1,0 +1,25 @@
+# Список портов для сканирования
+ports:
+  - 22      # SSH
+  - 80      # HTTP
+  - 443     # HTTPS
+  - 3000    # Dev servers
+  - 3306    # MySQL
+  - 5432    # PostgreSQL
+  - 6379    # Redis
+  - 8080    # HTTP Alt
+  - 8888
+  - 8443    # HTTPS Alt
+  - 9200    # Elasticsearch
+  - 27017   # MongoDB
+  - 11211   # Memcached
+
+# Таймауты
+timeouts:
+  dial: 2s
+  read: 3s
+  total: 5s
+
+# Настройки по умолчанию
+defaults:
+  workers: 100

@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/TheBrightLord/port-auditor/internal/config"
+	"github.com/TheBrightLord/port-auditor/internal/embedconfig"
 	"github.com/TheBrightLord/port-auditor/internal/notifier"
 	"github.com/TheBrightLord/port-auditor/internal/reporter"
 	"github.com/TheBrightLord/port-auditor/internal/scanner"
+	"github.com/TheBrightLord/port-auditor/internal/web"
 )
 
 func main() {
@@ -24,6 +26,7 @@ func main() {
 	output := flag.String("out", "", "JSON-файл отчета")
 	htmlOutput := flag.String("html-out", "", "HTML-файл отчета")
 	configPath := flag.String("config", "", "Путь к YAML-конфигу (по умолчанию configs/default.yaml)")
+	webUI := flag.Bool("web", false, "Запустить Web UI вместо CLI")
 
 	// Флаги для Telegram
 	tgToken := flag.String("tg-token", "", "Telegram Bot Token")
@@ -31,12 +34,7 @@ func main() {
 
 	flag.Parse()
 
-	if *cidr == "" {
-		fmt.Println("Использование: scanner -target 192.168.1.0/24 [-config configs/default.yaml]")
-		os.Exit(1)
-	}
-
-	// Загрузка конфигурации
+	// Загрузка конфигурации (нужна и для CLI, и для Web)
 	var cfg *config.Config
 	var err error
 
@@ -50,10 +48,26 @@ func main() {
 		if err != nil {
 			log.Fatalf("Ошибка загрузки конфига %s: %v", cfgFile, err)
 		}
-		fmt.Printf("📄 Конфиг загружен: %s\n", cfgFile)
+		fmt.Printf("📄 Конфиг загружен из файла: %s\n", cfgFile)
 	} else {
-		cfg = config.Default()
-		fmt.Println("📄 Используется конфигурация по умолчанию")
+		// Используем встроенный конфиг
+		cfg = config.DefaultFromBytes(embedconfig.DefaultConfig)
+		fmt.Println("📄 Используется встроенная конфигурация (embed)")
+	}
+
+	// ====== WEB UI РЕЖИМ ======
+	if *webUI {
+		srv := web.NewServer(cfg)
+		log.Fatal(srv.Start(":8080"))
+	}
+	// ==========================
+
+	// CLI режим: target обязателен
+	if *cidr == "" {
+		fmt.Println("Использование:")
+		fmt.Println("  CLI:  scanner -target 192.168.1.0/24 [-out report.json] [-html-out report.html]")
+		fmt.Println("  Web:  scanner -web")
+		os.Exit(1)
 	}
 
 	// Флаг -workers переопределяет значение из конфига

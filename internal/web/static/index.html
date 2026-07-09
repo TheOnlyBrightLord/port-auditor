@@ -1,0 +1,134 @@
+<body>
+    <div class="container">
+        <h1>🔍 Port Auditor</h1>
+
+        <div class="panel">
+            <div class="form-row">
+                <div class="form-group" style="flex:1">
+                    <label>Цель (CIDR)</label>
+                    <input type="text" id="target" value="127.0.0.1/32" placeholder="192.168.1.0/24">
+                </div>
+                <div class="form-group">
+                    <label>Воркеры</label>
+                    <input type="number" id="workers" value="100" style="width:100px">
+                </div>
+                <button id="scanBtn" onclick="startScan()">Запустить сканирование</button>
+                <button onclick="loadHistory()" style="background:#334155">История</button>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+        </div>
+
+        <div class="panel" id="historyPanel" style="display:none">
+            <h2 style="margin-bottom:15px">История сканирований</h2>
+            <table class="results-table">
+                <thead><tr><th>ID</th><th>Цель</th><th>Дата</th><th>Статус</th><th>Действие</th></tr></thead>
+                <tbody id="historyList"></tbody>
+            </table>
+        </div>
+
+        <div class="panel">
+            <h2 style="margin-bottom:15px">Результаты</h2>
+            <table class="results-table">
+                <thead><tr><th>Хост:Порт</th><th>Сервис</th><th>Версия</th><th>Время</th><th>Статус</th></tr></thead>
+                <tbody id="results"><tr><td colspan="5" class="empty-state">Нажмите «Запустить сканирование»</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function startScan() {
+            const btn = document.getElementById('scanBtn');
+            const target = document.getElementById('target').value;
+            const workers = parseInt(document.getElementById('workers').value) || 100;
+
+            btn.disabled = true;
+            btn.textContent = 'Сканирование...';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('progress').style.width = '0%';
+
+            try {
+                const res = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target, workers})
+                });
+                const data = await res.json();
+                listenEvents(data.id);
+            } catch(e) {
+                alert('Ошибка: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = 'Запустить сканирование';
+            }
+        }
+
+        function listenEvents(id) {
+            const es = new EventSource('/api/events/' + id);
+            es.onmessage = (e) => {
+                const event = JSON.parse(e.data);
+                if (event.type === 'progress') {
+                    document.getElementById('progress').style.width = (event.progress * 100) + '%';
+                } else if (event.type === 'result') {
+                    addResult(event.result);
+                } else if (event.type === 'done') {
+                    es.close();
+                    document.getElementById('scanBtn').disabled = false;
+                    document.getElementById('scanBtn').textContent = 'Запустить сканирование';
+                    loadHistory(); // Обновить историю после завершения
+                } else if (event.type === 'error') {
+                    es.close();
+                    alert('Ошибка: ' + event.message);
+                    document.getElementById('scanBtn').disabled = false;
+                    document.getElementById('scanBtn').textContent = 'Запустить сканирование';
+                }
+            };
+        }
+
+        function addResult(r) {
+            const tbody = document.getElementById('results');
+            if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
+            const riskClass = r.risk ? 'critical' : 'ok';
+            const riskText = r.risk || 'OK';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><strong>${r.host}:${r.port}</strong></td>
+                <td>${r.service || '-'}</td>
+                <td>${r.version || '-'}</td>
+                <td>${r.duration_ms?.toFixed(2) || '-'} мс</td>
+                <td><span class="badge ${riskClass}">${riskText}</span></td>`;
+            tbody.prepend(tr);
+        }
+
+        async function loadHistory() {
+            const panel = document.getElementById('historyPanel');
+            panel.style.display = 'block';
+            const tbody = document.getElementById('historyList');
+            tbody.innerHTML = '<tr><td colspan="5">Загрузка...</td></tr>';
+
+            try {
+                const res = await fetch('/api/history');
+                const items = await res.json();
+                tbody.innerHTML = '';
+                
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">История пуста</td></tr>';
+                    return;
+                }
+
+                items.forEach(item => {
+                    const tr = document.createElement('tr');
+                    let action = '-';
+                    if (item.status === 'completed') {
+                        action = `<a href="/api/reports/${item.id}/download" download>Скачать JSON</a>`;
+                    }
+                    tr.innerHTML = `<td>${item.id}</td>
+                        <td>${item.target}</td>
+                        <td>${new Date(item.timestamp).toLocaleString()}</td>
+                        <td><span class="badge ${item.status === 'completed' ? 'ok' : 'critical'}">${item.status}</span></td>
+                        <td>${action}</td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch(e) {
+                console.error(e);
+            }
+        }
+    </script>
+</body>

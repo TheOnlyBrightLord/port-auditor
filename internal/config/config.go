@@ -37,8 +37,20 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// Default возвращает конфигурацию по умолчанию
-func Default() *Config {
+// DefaultFromBytes парсит конфиг из байтов (для embed)
+func DefaultFromBytes(data []byte) *Config {
+	if len(data) == 0 {
+		return HardcodedDefault()
+	}
+	cfg := &Config{}
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return HardcodedDefault()
+	}
+	return cfg
+}
+
+// HardcodedDefault используется как fallback
+func HardcodedDefault() *Config {
 	return &Config{
 		Ports: []int{22, 80, 443, 3000, 3306, 5432, 6379, 8080, 8443, 9200, 27017, 11211},
 		Timeouts: TimeoutConfig{
