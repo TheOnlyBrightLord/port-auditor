@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TheBrightLord/port-auditor/internal/config"
-	"github.com/TheBrightLord/port-auditor/internal/embedconfig"
-	"github.com/TheBrightLord/port-auditor/internal/notifier"
-	"github.com/TheBrightLord/port-auditor/internal/reporter"
-	"github.com/TheBrightLord/port-auditor/internal/scanner"
-	"github.com/TheBrightLord/port-auditor/internal/web"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/config"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/embedconfig"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/notifier"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/reporter"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/scanner"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/web"
 )
 
 func main() {

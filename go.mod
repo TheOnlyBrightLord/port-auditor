@@ -1,4 +1,4 @@
-module github.com/TheBrightLord/port-auditor
+module github.com/TheOnlyBrightLord/port-auditor
 
 go 1.26.4
 

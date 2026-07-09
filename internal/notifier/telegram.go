@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TheBrightLord/port-auditor/internal/scanner"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/scanner"
 )
 
 type TelegramNotifier struct {

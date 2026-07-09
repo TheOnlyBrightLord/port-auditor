@@ -18,3 +18,4 @@ Thumbs.db
 *.test
 *.out
 vendor/
+port-auditor/

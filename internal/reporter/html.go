@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/TheBrightLord/port-auditor/internal/scanner"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/scanner"
 )
 
 // Stats агрегированная статистика

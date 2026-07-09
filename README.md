@@ -33,7 +33,7 @@ port-auditor -web
 ### Установка из исходников
 
 ```bash
-git clone https://github.com/TheBrightLord/port-auditor.git
+git clone https://github.com/TheOnlyBrightLord/port-auditor.git
 cd port-auditor
 make build
 ./build/port-auditor -target 192.168.1.0/24

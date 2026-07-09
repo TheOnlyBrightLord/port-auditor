@@ -1,4 +1,4 @@
-﻿package embedconfig
+package embedconfig
 
 import _ "embed"
 

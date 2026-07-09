@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TheBrightLord/port-auditor/internal/config"
-	"github.com/TheBrightLord/port-auditor/internal/scanner"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/config"
+	"github.com/TheOnlyBrightLord/port-auditor/internal/scanner"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
