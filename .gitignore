@@ -1,0 +1,20 @@
+# Собранные бинарники
+build/
+*.exe
+
+# Генерируемые отчёты
+report.json
+report.html
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Go
+*.test
+*.out
+vendor/

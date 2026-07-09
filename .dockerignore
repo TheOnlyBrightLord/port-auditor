@@ -1,0 +1,9 @@
+.git
+.github
+.vscode
+build/
+*.exe
+*.json
+*.html
+README.md
+Makefile
